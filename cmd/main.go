@@ -7,7 +7,10 @@ import (
 	"os"
 
 	"github.com/qibobo/webgo/config"
+	"github.com/qibobo/webgo/db/sqldb"
+	"github.com/qibobo/webgo/logging"
 	"github.com/qibobo/webgo/server"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -42,6 +45,20 @@ func main() {
 		fmt.Fprintf(os.Stdout, "failed to validate configuration : %s\n", err.Error())
 		os.Exit(1)
 	}
-	app := server.CreateServer()
-	app.Listen(fmt.Sprintf(":%d", conf.Port))
+
+	logger, err := logging.NewLogger("webgo")
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "failed to init logger : %s\n", err.Error())
+		os.Exit(1)
+	}
+	fmt.Printf("=======logger: %v\n", logger)
+	demodb, err := sqldb.NewDemoSQLDB(conf.DB.DemoDB, *logger.Named("demodb"))
+	if err != nil {
+		logger.Error("failed to connect to demodb", zap.Error(err))
+		os.Exit(1)
+	}
+	logger.Info("creating http server", zap.Int("port", conf.Server.Port))
+	app := server.CreateServer(logger, demodb)
+
+	app.Listen(fmt.Sprintf(":%d", conf.Server.Port))
 }
